@@ -75,7 +75,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	out, _ := json.MarshalIndent(gunship, "", "    ")
+	out, _ = json.MarshalIndent(gunship, "", "    ")
 	fmt.Print(string(out))
 
 }
