@@ -3,53 +3,56 @@ package htbapi
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 )
 
+// Challenge represents information about a Challenge
 type Challenge struct {
-	ID                   int             `json:"id"`
-	Name                 string          `json:"name"`
-	Description          string          `json:"description"`
-	URLName              string          `json:"url_name"`
-	Retired              int             `json:"retired"`
-	Difficulty           string          `json:"difficulty"`
-	AVGDifficulty        int             `json:"avg_difficulty"`
-	Points               string          `json:"points"`
-	StaticPoints         string          `json:"static_points"`
-	DifficultyChart      DifficultyChart `json:"difficulty_chart"`
-	DifficultyChartArray []int           `json:"difficulty_chart_arr"`
-	Solves               int             `json:"solves"`
-	Likes                int             `json:"likes"`
-	Dislikes             int             `json:"dislikes"`
-	ReleaseDate          string          `json:"release_date"`
-	IsCompleted          bool            `json:"isCompleted"`
-	ChallengeCategoryID  int             `json:"challenge_category_id"`
-	CategoryName         string          `json:"category_name"`
-	LikeByAuthUser       bool            `json:"likeByAuthUser"`
-	DislikeByAuthUser    bool            `json:"dislikeByAuthUser"`
 	AuthUserSolve        bool            `json:"authUserSolve"`
 	AuthUserSolveTime    string          `json:"authUserSolveTime"`
-	IsActive             bool            `json:"isActive"`
-	IsTodo               bool            `json:"isTodo"`
-	Recommended          int             `json:"recommended"`
-	FirstBloodUser       string          `json:"first_blood_user"`
-	FirstBloodUserID     int             `json:"first_blood_user_id"`
-	FirstBloodTime       string          `json:"first_blood_time"`
-	FirstBloodUserAvatar string          `json:"first_blood_user_avatar"`
-	CreatorID            int             `json:"creator_id"`
-	CreatorName          string          `json:"creator_name"`
-	CreatorAvatar        string          `json:"creator_avatar"`
-	IsRespected          bool            `json:"isRespected"`
+	AVGDifficulty        int             `json:"avg_difficulty"`
+	CategoryName         string          `json:"category_name"`
+	ChallengeCategoryID  int             `json:"challenge_category_id"`
+	Creator2Avatar       string          `json:"creator2_avatar"`
 	Creator2ID           int             `json:"creator2_id"`
 	Creator2Name         string          `json:"creator2_name"`
-	Creator2Avatar       string          `json:"creator2_avatar"`
-	IsRespected2         bool            `json:"isRespected2"`
-	Download             bool            `json:"download"`
-	SHA256               string          `json:"sha256"`
+	CreatorAvatar        string          `json:"creator_avatar"`
+	CreatorID            int             `json:"creator_id"`
+	CreatorName          string          `json:"creator_name"`
+	Description          string          `json:"description"`
+	Difficulty           string          `json:"difficulty"`
+	DifficultyChart      DifficultyChart `json:"difficulty_chart"`
+	DifficultyChartArray []int           `json:"difficulty_chart_arr"`
+	DislikeByAuthUser    bool            `json:"dislikeByAuthUser"`
+	Dislikes             int             `json:"dislikes"`
 	Docker               bool            `json:"docker"`
 	DockerIP             string          `json:"docker_ip"`
 	DockerPort           int             `json:"docker_port"`
+	Download             bool            `json:"download"`
+	FirstBloodTime       string          `json:"first_blood_time"`
+	FirstBloodUser       string          `json:"first_blood_user"`
+	FirstBloodUserAvatar string          `json:"first_blood_user_avatar"`
+	FirstBloodUserID     int             `json:"first_blood_user_id"`
+	ID                   int             `json:"id"`
+	IsActive             bool            `json:"isActive"`
+	IsCompleted          bool            `json:"isCompleted"`
+	IsRespected          bool            `json:"isRespected"`
+	IsRespected2         bool            `json:"isRespected2"`
+	IsTodo               bool            `json:"isTodo"`
+	LikeByAuthUser       bool            `json:"likeByAuthUser"`
+	Likes                int             `json:"likes"`
+	Name                 string          `json:"name"`
+	Points               string          `json:"points"`
+	Recommended          int             `json:"recommended"`
+	ReleaseDate          string          `json:"release_date"`
+	Retired              int             `json:"retired"`
+	SHA256               string          `json:"sha256"`
+	Solves               int             `json:"solves"`
+	StaticPoints         string          `json:"static_points"`
+	URLName              string          `json:"url_name"`
 }
 
+// DifficultyChart is the rating system
 type DifficultyChart struct {
 	CounterCake      int `json:"counterCake"`
 	CounterVeryEasy  int `json:"counterVeryEasy"`
@@ -63,14 +66,17 @@ type DifficultyChart struct {
 	CounterBrainFuck int `json:"counterBrainFuck"`
 }
 
+// GetChallengesResponse is used to construct the response to /challenge/list
 type GetChallengesResponse struct {
 	Challenges []Challenge `json:"challenges"`
 }
 
+// GetChallengeResponse is used to construct the response to /challenge/info/<id>
 type GetChallengeRepsonse struct {
 	Challenge Challenge `json:"challenge"`
 }
 
+// GetAllChallenges will return you all challenges either retired=true or retired=false (the active ones)
 func (a *API) GetAllChallenges(retired bool) ([]Challenge, error) {
 	var endpoint string
 	switch retired {
@@ -82,7 +88,7 @@ func (a *API) GetAllChallenges(retired bool) ([]Challenge, error) {
 		return nil, nil
 	}
 
-	body, err := a.DoRequest(endpoint, nil, true)
+	body, err := a.DoRequest(endpoint, nil, true, false)
 	if err != nil {
 		return nil, err
 	}
@@ -96,8 +102,11 @@ func (a *API) GetAllChallenges(retired bool) ([]Challenge, error) {
 	return respMessage.Challenges, nil
 }
 
-func (a *API) GetChallenge(id string) (Challenge, error) {
-	body, err := a.DoRequest(fmt.Sprintf("/challenge/info/%s", id), nil, true)
+// GetChallenge will return you a certain challenge by id
+func (a *API) GetChallenge(id int) (Challenge, error) {
+	sID := strconv.Itoa(id)
+
+	body, err := a.DoRequest(fmt.Sprintf("/challenge/info/%s", sID), nil, true, false)
 	if err != nil {
 		return Challenge{}, err
 	}

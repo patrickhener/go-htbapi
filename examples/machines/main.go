@@ -9,6 +9,7 @@ import (
 )
 
 func main() {
+	// Handle Login
 	home, err := os.UserHomeDir()
 	if err != nil {
 		panic(err)
@@ -50,4 +51,26 @@ func main() {
 
 		}
 	}
+
+	/////////////////////////////////////////////////////////////////////////////
+	// Query machines and single machine
+	/////////////////////////////////////////////////////////////////////////////
+
+	machines, err := a.GetAllMachines(false)
+	if err != nil {
+		panic(err)
+	}
+
+	for i, m := range machines {
+		fmt.Printf("[%d: ID %d] - %s\n", i+1, m.ID, m.Name)
+	}
+
+	devzat, err := a.GetMachine(398)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("The maker of machine '%s - %s' is '%s'\n", devzat.Name, devzat.IP, devzat.Maker.Name)
+
+	/////////////////////////////////////////////////////////////////////////////
 }

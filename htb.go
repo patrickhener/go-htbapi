@@ -1,3 +1,5 @@
+// Package htbapi provides a library to interact with the api/v4/ endpoint
+// of hackthebox.com. It will let you do a lot of different things
 package htbapi
 
 import (
@@ -21,43 +23,52 @@ import (
 	"golang.org/x/term"
 )
 
+// API represents the connection details with hackthebox
+// It will be provided with credentials and is the main interface to
+// communicate with the api at /api/v4
 type API struct {
 	BaseURL      string
-	Username     string
+	Is2FAEnabled bool
 	Password     string
+	RefreshToken string
 	Remember     bool
 	Session      *http.Client
 	Token        string
-	RefreshToken string
-	Is2FAEnabled bool
 	TokenHas2FA  bool
+	Username     string
 }
 
+// LoginBody is used to construct the json payload for /login
 type LoginBody struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 	Remember bool   `json:"remember"`
 }
 
+// LoginResponse is used to construct the response for /login
 type LoginResponse struct {
 	Message LoginResponseMessage `json:"message"`
 }
 
+// LoginResponseMessage holds the login response data for /login
 type LoginResponseMessage struct {
 	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
 	Is2FAEnabled bool   `json:"is2FAEnabled"`
+	RefreshToken string `json:"refresh_token"`
 	TokenHas2FA  bool   `json:"tokenHas2FA"`
 }
 
+// OTPBody is used to construct the json payload for /2fa/login
 type OTPBody struct {
 	OneTimePassword string `json:"one_time_password"`
 }
 
+// OTPLoginResponse is used to construct the login response data for /2fa/login
 type OTPLoginResponse struct {
 	Message string `json:"message"`
 }
 
+// JWTPayload is used to construct the JWTToken data while parsed
 type JWTPayload struct {
 	AUD string `json:"aud"`
 	JTI string `json:"jti"`
@@ -67,6 +78,10 @@ type JWTPayload struct {
 	SUB string `json:"sub"`
 }
 
+// New will return an instantiated pointer to API.
+// BaseURL is set statically to "https://www.hackthebox.com/api/v4".
+// If DEBUG=TRUE is present in env http.Proxy will be set to http://127.0.0.1:8080.
+// Also the connection will then ignore self signed certificates.
 func New(u, p string, r bool) (*API, error) {
 	a := &API{
 		BaseURL:  "https://www.hackthebox.com/api/v4",
@@ -81,6 +96,10 @@ func New(u, p string, r bool) (*API, error) {
 		return nil, err
 	}
 	a.Session.Jar = jar
+	a.Session.Timeout = 45 * time.Second
+	a.Session.Transport = &http.Transport{
+		TLSHandshakeTimeout: 10 * time.Second,
+	}
 
 	// Set proxy for http client if env DEBUG=TRUE
 	if os.Getenv("DEBUG") == "TRUE" {
@@ -93,19 +112,23 @@ func New(u, p string, r bool) (*API, error) {
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
 			},
+			TLSHandshakeTimeout: 10 * time.Second,
 		}
 	}
 
 	return a, nil
 }
 
+// Login will handle the login to /login.
+// It will also trigger 2FA login if needed.
+// It is a wrapper function around DoLogin() and DoOTPLogin().
 func (a *API) Login() error {
-	if err := a.doLogin(); err != nil {
+	if err := a.DoLogin(); err != nil {
 		return err
 	}
 
 	if a.Is2FAEnabled {
-		if err := a.doOTPLogin(); err != nil {
+		if err := a.DoOTPLogin(); err != nil {
 			return err
 		}
 	}
@@ -113,7 +136,10 @@ func (a *API) Login() error {
 	return nil
 }
 
-func (a *API) doLogin() error {
+// DoLogin actually does the login request.
+// If Email and Password are not set, it will prompt for it.
+// It sets the Session details within the API struct after successful login.
+func (a *API) DoLogin() error {
 	body := LoginBody{
 		Email:    a.Username,
 		Password: a.Password,
@@ -146,26 +172,15 @@ func (a *API) doLogin() error {
 	if err != nil {
 		return err
 	}
-	url := fmt.Sprintf("%s/login", a.BaseURL)
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
+	resp, err := a.DoRequest("/login", jsonBody, false, true)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := a.Session.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("Problems logging in. Status: %d", resp.StatusCode)
-	}
+	defer resp.Close()
 
 	var respMessage LoginResponse
-	if err := json.NewDecoder(resp.Body).Decode(&respMessage); err != nil {
+	if err := json.NewDecoder(resp).Decode(&respMessage); err != nil {
 		return err
 	}
 
@@ -177,7 +192,8 @@ func (a *API) doLogin() error {
 	return nil
 }
 
-func (a *API) doOTPLogin() error {
+// DoOTPLogin will handle the 2FA OTP login. It will prompt for the login code.
+func (a *API) DoOTPLogin() error {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print("Enter OTP: ")
 	otp, err := reader.ReadString('\n')
@@ -196,21 +212,14 @@ func (a *API) doOTPLogin() error {
 		return err
 	}
 
-	req, err := http.NewRequest("POST", fmt.Sprintf("%s/2fa/login", a.BaseURL), bytes.NewBuffer(jsonOTPBody))
+	resp, err := a.DoRequest("/2fa/login", jsonOTPBody, true, true)
 	if err != nil {
 		return err
 	}
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", a.Token))
-	req.Header.Add("Content-Type", "application/json")
-
-	resp, err := a.Session.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
+	defer resp.Close()
 
 	var otpResp OTPLoginResponse
-	if err := json.NewDecoder(resp.Body).Decode(&otpResp); err != nil {
+	if err := json.NewDecoder(resp).Decode(&otpResp); err != nil {
 		return err
 	}
 
@@ -221,9 +230,9 @@ func (a *API) doOTPLogin() error {
 	return nil
 }
 
-func (a *API) doRefreshToken() error {
-	url := fmt.Sprintf("%s/login/refresh", a.BaseURL)
-
+// DoRefreshToken will handle the renewal of the access_token. If it is expired
+// it will pull a new one using the refresh_token
+func (a *API) DoRefreshToken() error {
 	type refreshBody struct {
 		RefreshToken string `json:"refresh_token"`
 	}
@@ -237,27 +246,14 @@ func (a *API) doRefreshToken() error {
 		return err
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
+	resp, err := a.DoRequest("/login/refresh", jsonBody, true, true)
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+a.Token)
-	req.Header.Add("Origin", "https://app.hackthebox.com")
-	req.Header.Add("Referer", "https://app.hackthebox.com/")
-
-	resp, err := a.Session.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return fmt.Errorf("Problems logging in. Status: %d", resp.StatusCode)
-	}
+	defer resp.Close()
 
 	var respMessage LoginResponse
-	if err := json.NewDecoder(resp.Body).Decode(&respMessage); err != nil {
+	if err := json.NewDecoder(resp).Decode(&respMessage); err != nil {
 		return err
 	}
 
@@ -273,6 +269,9 @@ func (a *API) doRefreshToken() error {
 	return nil
 }
 
+// JWTExpired is a helper function. It will take the access_token and parse
+// the payload part of it. It will judge expiration based upon the 'exp' field
+// in the payload. It will compare it to time.Now().Unix()
 func JWTExpired(accessToken string) (bool, error) {
 	payloads := strings.Split(accessToken, ".")
 	data, err := base64.StdEncoding.DecodeString(payloads[1])
@@ -294,6 +293,9 @@ func JWTExpired(accessToken string) (bool, error) {
 	}
 }
 
+// LoadSessionFromCache will load a session cache file containing
+// the access_token and the refresh_token. It takes a path where
+// the file is stored.
 func (a *API) LoadSessionFromCache(path string) (bool, error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return false, fmt.Errorf("error reading the cache file: %+v", err)
@@ -326,6 +328,9 @@ func (a *API) LoadSessionFromCache(path string) (bool, error) {
 	return false, nil
 }
 
+// DumpSessionToCache will write the access_token and the refresh_token
+// to disk to be read by LoadSessionFromCache. It will take a path
+// where the file will be written to.
 func (a *API) DumpSessionToCache(path string) error {
 	if a.Token == "" || a.RefreshToken == "" {
 		return fmt.Errorf("%s", "there is no valid session yet")
@@ -356,9 +361,14 @@ func (a *API) DumpSessionToCache(path string) error {
 	return nil
 }
 
-func (a *API) DoRequest(endpoint string, jsonData []byte, authorized bool) (io.ReadCloser, error) {
-	method := "POST"
-	if jsonData == nil {
+// DoRequest will send a request to the API endpoint. You provide the endpoint, jsonData or nil, if it will be authorized by using the Bearer Token and if it is supposed to be a POST request (otherwise it will be GET).
+// It will return to you the io.ReadCloser of the responses body. Also it will throw an error if the
+// HTTP Response code is other than 200.
+func (a *API) DoRequest(endpoint string, jsonData []byte, authorized bool, post bool) (io.ReadCloser, error) {
+	var method string
+	if post {
+		method = "POST"
+	} else {
 		method = "GET"
 	}
 
@@ -378,12 +388,16 @@ func (a *API) DoRequest(endpoint string, jsonData []byte, authorized bool) (io.R
 		}
 
 		if expired {
-			if err := a.doRefreshToken(); err != nil {
+			if err := a.DoRefreshToken(); err != nil {
 				return nil, err
 			}
 		}
 
 		req.Header.Add("Authorization", "Bearer "+a.Token)
+	}
+
+	if jsonData != nil {
+		req.Header.Add("Content-Type", "application/json")
 	}
 
 	resp, err := a.Session.Do(req)

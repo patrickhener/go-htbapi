@@ -9,6 +9,7 @@ import (
 )
 
 func main() {
+	// Handle Login
 	home, err := os.UserHomeDir()
 	if err != nil {
 		panic(err)
@@ -50,4 +51,26 @@ func main() {
 
 		}
 	}
+
+	/////////////////////////////////////////////////////////////////////////////
+	// Query challenges and single challenge
+	/////////////////////////////////////////////////////////////////////////////
+
+	challenges, err := a.GetAllChallenges(false)
+	if err != nil {
+		panic(err)
+	}
+
+	for i, c := range challenges {
+		fmt.Printf("[%3d: ID %d] - %s\n", i+1, c.ID, c.Name)
+	}
+
+	gunship, err := a.GetChallenge(245)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("The maker of challenge '%s, Category: %s' is '%s'\n", gunship.Name, gunship.CategoryName, gunship.CreatorName)
+
+	/////////////////////////////////////////////////////////////////////////////
 }
