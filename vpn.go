@@ -44,7 +44,7 @@ func (a *API) GetCurrentVPNServer(search string) (VPNServer, error) {
 		return vs, fmt.Errorf("you have to specify a valid vpn endpoint. Those are: %+v", EnumVPNEndpoints)
 	}
 
-	connectionsBody, err := a.DoRequest("/connections", nil, true, false)
+	connectionsBody, _, err := a.DoRequest("/connections", nil, true, false)
 	if err != nil {
 		return VPNServer{}, err
 	}

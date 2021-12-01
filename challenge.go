@@ -88,7 +88,7 @@ func (a *API) GetAllChallenges(retired bool) ([]Challenge, error) {
 		return nil, nil
 	}
 
-	body, err := a.DoRequest(endpoint, nil, true, false)
+	body, _, err := a.DoRequest(endpoint, nil, true, false)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +106,7 @@ func (a *API) GetAllChallenges(retired bool) ([]Challenge, error) {
 func (a *API) GetChallenge(id int) (Challenge, error) {
 	sID := strconv.Itoa(id)
 
-	body, err := a.DoRequest(fmt.Sprintf("/challenge/info/%s", sID), nil, true, false)
+	body, _, err := a.DoRequest(fmt.Sprintf("/challenge/info/%s", sID), nil, true, false)
 	if err != nil {
 		return Challenge{}, err
 	}

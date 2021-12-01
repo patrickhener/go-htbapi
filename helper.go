@@ -112,23 +112,10 @@ func getPasswd(prompt string, masked bool, r FdReader, w io.Writer) ([]byte, err
 	return pass, err
 }
 
-// GetPasswd returns the password read from the terminal without echoing input.
-// The returned byte array does not include end-of-line characters.
-func GetPasswd() ([]byte, error) {
-	return getPasswd("", false, os.Stdin, os.Stdout)
-}
-
 // GetPasswdMasked returns the password read from the terminal, echoing asterisks.
 // The returned byte array does not include end-of-line characters.
 func GetPasswdMasked() ([]byte, error) {
 	return getPasswd("", true, os.Stdin, os.Stdout)
-}
-
-// GetPasswdPrompt prompts the user and returns the password read from the terminal.
-// If mask is true, then asterisks are echoed.
-// The returned byte array does not include end-of-line characters.
-func GetPasswdPrompt(prompt string, mask bool, r FdReader, w io.Writer) ([]byte, error) {
-	return getPasswd(prompt, mask, r, w)
 }
 
 func isTerminal(fd uintptr) bool {

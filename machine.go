@@ -114,6 +114,20 @@ type SpawnedMachineInfoResponse struct {
 	Info Machine `json:"info"`
 }
 
+// Submission will represent submission details for submitting flags to /machine/own
+type Submission struct {
+	Difficulty int    `json:"difficulty"`
+	Flag       string `json:"flag"`
+	ID         int    `json:"id"`
+}
+
+// SubmissionResponse will be used to construct the response to /machine/own
+type SubmissionResponse struct {
+	Message string `json:"message"`
+	Status  int    `json:"status"`
+	Success string `json:"success"`
+}
+
 // GetAllMachines will get you a list of machines either active ones when choosing retired=false or
 // retired ones if choosing retired=true
 func (a *API) GetAllMachines(retired bool) ([]Machine, error) {
@@ -127,7 +141,7 @@ func (a *API) GetAllMachines(retired bool) ([]Machine, error) {
 		return nil, nil
 	}
 
-	body, err := a.DoRequest(endpoint, nil, true, false)
+	body, _, err := a.DoRequest(endpoint, nil, true, false)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +159,7 @@ func (a *API) GetAllMachines(retired bool) ([]Machine, error) {
 func (a *API) GetMachine(id int) (Machine, error) {
 	sID := strconv.Itoa(id)
 
-	body, err := a.DoRequest(fmt.Sprintf("/machine/profile/%s", sID), nil, true, false)
+	body, _, err := a.DoRequest(fmt.Sprintf("/machine/profile/%s", sID), nil, true, false)
 	if err != nil {
 		return Machine{}, err
 	}
@@ -185,7 +199,7 @@ func (a *API) GetReleaseArenaMachine() (Machine, error) {
 func (m *Machine) SpawnMachine(a *API, releaseArena bool) (MachineInstance, error) {
 	switch releaseArena {
 	case true:
-		body, err := a.DoRequest("/release_arena/spawn", nil, true, true)
+		body, _, err := a.DoRequest("/release_arena/spawn", nil, true, true)
 		if err != nil {
 			return MachineInstance{}, err
 		}
@@ -221,7 +235,7 @@ func (m *Machine) SpawnMachine(a *API, releaseArena bool) (MachineInstance, erro
 			return MachineInstance{}, err
 		}
 
-		resp, err := a.DoRequest("/vm/spawn", j, true, true)
+		resp, _, err := a.DoRequest("/vm/spawn", j, true, true)
 		if err != nil {
 			return MachineInstance{}, err
 		}
@@ -246,7 +260,7 @@ func (a *API) GetSpawnedMachineInstance(releaseArena bool) (MachineInstance, err
 	switch releaseArena {
 	case true:
 		mi := MachineInstance{}
-		infoBody, err := a.DoRequest("/release_arena/active", nil, true, false)
+		infoBody, _, err := a.DoRequest("/release_arena/active", nil, true, false)
 		if err != nil {
 			return MachineInstance{}, err
 		}
@@ -270,7 +284,7 @@ func (a *API) GetSpawnedMachineInstance(releaseArena bool) (MachineInstance, err
 	case false:
 		mi := MachineInstance{}
 
-		infoBody, err := a.DoRequest("/machine/active", nil, true, false)
+		infoBody, _, err := a.DoRequest("/machine/active", nil, true, false)
 		if err != nil {
 			return MachineInstance{}, err
 		}
@@ -307,7 +321,7 @@ func (a *API) GetSpawnedMachineInstance(releaseArena bool) (MachineInstance, err
 func (mi *MachineInstance) Stop(a *API, releaseArena bool) (bool, error) {
 	switch releaseArena {
 	case true:
-		respBody, err := a.DoRequest("/release_arena/terminate", nil, true, true)
+		respBody, _, err := a.DoRequest("/release_arena/terminate", nil, true, true)
 		if err != nil {
 			return false, err
 		}
@@ -332,7 +346,7 @@ func (mi *MachineInstance) Stop(a *API, releaseArena bool) (bool, error) {
 			return false, err
 		}
 
-		respBody, err := a.DoRequest("/vm/terminate", j, true, true)
+		respBody, _, err := a.DoRequest("/vm/terminate", j, true, true)
 		if err != nil {
 			return false, err
 		}
@@ -344,4 +358,48 @@ func (mi *MachineInstance) Stop(a *API, releaseArena bool) (bool, error) {
 	}
 
 	return false, nil
+}
+
+// Submit will submit a flag to the currently running machine instance. We will have to provide diffuculty from 1 to 10 and the flag and we need to either choose releaseArena true or false accordingly
+func (mi *MachineInstance) Submit(a *API, flag string, difficulty int, releaseArena bool) (bool, SubmissionResponse, error) {
+	sr := SubmissionResponse{}
+	if difficulty < 1 || difficulty > 10 {
+		return false, sr, fmt.Errorf("%s", "Difficulty has to be between 1 and 10")
+	}
+
+	submission := Submission{
+		ID:         mi.Machine.ID,
+		Flag:       flag,
+		Difficulty: difficulty * 10,
+	}
+
+	jsonData, err := json.Marshal(submission)
+	if err != nil {
+		return false, sr, err
+	}
+
+	var endpoint string
+	switch releaseArena {
+	case true:
+		endpoint = "/release_arena/own"
+	case false:
+		endpoint = "/machine/own"
+	}
+
+	resp, code, err := a.DoRequest(endpoint, jsonData, true, true)
+	if err != nil {
+		return false, sr, err
+	}
+	defer resp.Close()
+
+	var submissionResponse SubmissionResponse
+	if err := json.NewDecoder(resp).Decode(&submissionResponse); err != nil {
+		return false, sr, err
+	}
+
+	if code == 400 || submissionResponse.Status == 400 || submissionResponse.Message == "Incorrect Flag!" {
+		return false, submissionResponse, nil
+	}
+
+	return true, submissionResponse, nil
 }

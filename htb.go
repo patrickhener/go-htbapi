@@ -169,7 +169,7 @@ func (a *API) DoLogin() error {
 		return err
 	}
 
-	resp, err := a.DoRequest("/login", jsonBody, false, true)
+	resp, _, err := a.DoRequest("/login", jsonBody, false, true)
 	if err != nil {
 		return err
 	}
@@ -208,7 +208,7 @@ func (a *API) DoOTPLogin() error {
 		return err
 	}
 
-	resp, err := a.DoRequest("/2fa/login", jsonOTPBody, true, true)
+	resp, _, err := a.DoRequest("/2fa/login", jsonOTPBody, true, true)
 	if err != nil {
 		return err
 	}
@@ -242,7 +242,7 @@ func (a *API) DoRefreshToken() error {
 		return err
 	}
 
-	resp, err := a.DoRequest("/login/refresh", jsonBody, true, true)
+	resp, _, err := a.DoRequest("/login/refresh", jsonBody, true, true)
 	if err != nil {
 		return err
 	}
@@ -358,9 +358,8 @@ func (a *API) DumpSessionToCache(path string) error {
 }
 
 // DoRequest will send a request to the API endpoint. You provide the endpoint, jsonData or nil, if it will be authorized by using the Bearer Token and if it is supposed to be a POST request (otherwise it will be GET).
-// It will return to you the io.ReadCloser of the responses body. Also it will throw an error if the
-// HTTP Response code is other than 200.
-func (a *API) DoRequest(endpoint string, jsonData []byte, authorized bool, post bool) (io.ReadCloser, error) {
+// It will return to you the io.ReadCloser of the responses body and the HTTP Status code.
+func (a *API) DoRequest(endpoint string, jsonData []byte, authorized bool, post bool) (io.ReadCloser, int, error) {
 	var method string
 	if post {
 		method = "POST"
@@ -370,7 +369,7 @@ func (a *API) DoRequest(endpoint string, jsonData []byte, authorized bool, post 
 
 	req, err := http.NewRequest(method, fmt.Sprintf("%s%s", a.BaseURL, endpoint), bytes.NewBuffer(jsonData))
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	req.Header.Add("Accept", "application/json, text/plain, */*")
 	req.Header.Add("Origin", "https://app.hackthebox.com")
@@ -379,13 +378,13 @@ func (a *API) DoRequest(endpoint string, jsonData []byte, authorized bool, post 
 	if authorized {
 		expired, err := JWTExpired(a.Token)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 
 		}
 
 		if expired {
 			if err := a.DoRefreshToken(); err != nil {
-				return nil, err
+				return nil, 0, err
 			}
 		}
 
@@ -398,12 +397,8 @@ func (a *API) DoRequest(endpoint string, jsonData []byte, authorized bool, post 
 
 	resp, err := a.Session.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("Error status: %d", resp.StatusCode)
-	}
-
-	return resp.Body, nil
+	return resp.Body, resp.StatusCode, nil
 }
