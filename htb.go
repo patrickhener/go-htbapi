@@ -17,10 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
-
-	"golang.org/x/term"
 )
 
 // API represents the connection details with hackthebox
@@ -159,13 +156,12 @@ func (a *API) DoLogin() error {
 
 	if body.Password == "" {
 		fmt.Print("Enter Password: ")
-		bytePassword, err := term.ReadPassword(int(syscall.Stdin))
+		bytePassword, err := GetPasswdMasked()
 		if err != nil {
-			panic(err)
+			return err
 		}
 
 		body.Password = string(bytePassword)
-		fmt.Println("")
 	}
 
 	jsonBody, err := json.Marshal(&body)
